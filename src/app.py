@@ -15,7 +15,7 @@ model = joblib.load('experiments/model.pkl')
 vectorizer = joblib.load('experiments/vectorizer.pkl')
 
 # Создаём приложение
-app = FastAPI(title="Amazon Reviews Sentiment API")
+
 
 # Схема входных данных
 class ReviewRequest(BaseModel):
@@ -55,10 +55,13 @@ def init_db():
     conn.close()
 
 # Инициализируем БД при старте
-@app.on_event("startup")
-def startup():
-    init_db()
+from contextlib import asynccontextmanager
 
+@asynccontextmanager
+async def lifespan(app):
+    init_db()
+    yield
+app = FastAPI(title="Amazon Reviews Sentiment API", lifespan=lifespan)
 # Главный эндпоинт
 @app.post('/predict')
 def predict(request: ReviewRequest):
