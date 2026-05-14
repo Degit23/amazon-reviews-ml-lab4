@@ -15,16 +15,30 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Start PostgreSQL
+      run: |
+        docker run -d --name postgres \
+        -e POSTGRES_DB=${{ secrets.POSTGRES_DB }} \
+        -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
+        -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+        -p 5432:5432 postgres:15
+
     - name: Pull Docker image
-      run: docker pull ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml:latest
+      run: docker pull ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-secondlab:latest
 
     - name: Run container
       run: |
         docker run -d --name test-container -p 8000:8000 \
-        ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml:latest
+        --link postgres:db \
+        -e POSTGRES_DB=${{ secrets.POSTGRES_DB }} \
+        -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
+        -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+        -e POSTGRES_HOST=db \
+        -e POSTGRES_PORT=5432 \
+        ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-secondlab:latest
 
     - name: Wait for startup
-      run: sleep 10
+      run: sleep 15
 
     - name: Test health endpoint
       run: curl -f http://localhost:8000/health
@@ -35,5 +49,10 @@ jobs:
         -H "Content-Type: application/json" \
         -d '{"text": "This album is absolutely amazing!"}'
 
-    - name: Stop container
-      run: docker stop test-container
+    - name: Test predictions endpoint
+      run: curl -f http://localhost:8000/predictions
+
+    - name: Stop containers
+      run: |
+        docker stop test-container
+        docker stop postgres
