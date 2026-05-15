@@ -3,8 +3,10 @@ import joblib
 import configparser
 import os
 import psycopg2
+import hvac
 from fastapi import FastAPI
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 
 # Загружаем конфиг
 config = configparser.ConfigParser()
@@ -14,28 +16,24 @@ config.read('config.ini')
 model = joblib.load('experiments/model.pkl')
 vectorizer = joblib.load('experiments/vectorizer.pkl')
 
-# Создаём приложение
+# Получаем секреты из Vault
+def get_secrets():
+    client = hvac.Client(
+        url=os.getenv('VAULT_ADDR', 'http://vault:8200'),
+        token=os.getenv('VAULT_TOKEN', 'root-token')
+    )
+    secret = client.secrets.kv.read_secret_version(path='postgres')
+    return secret['data']['data']
 
-
-# Схема входных данных
-class ReviewRequest(BaseModel):
-    text: str
-
-# Функция очистки текста
-def clean_text(text: str) -> str:
-    text = text.lower()
-    text = re.sub(r'[^a-zA-Z\s]', '', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text
-
-# Подключение к БД
+# Подключение к БД через секреты из Vault
 def get_db_connection():
+    secrets = get_secrets()
     return psycopg2.connect(
-        dbname=os.getenv('POSTGRES_DB'),
-        user=os.getenv('POSTGRES_USER'),
-        password=os.getenv('POSTGRES_PASSWORD'),
-        host=os.getenv('POSTGRES_HOST'),
-        port=os.getenv('POSTGRES_PORT')
+        dbname=secrets['db'],
+        user=secrets['user'],
+        password=secrets['password'],
+        host=secrets['host'],
+        port=secrets['port']
     )
 
 # Создаём таблицу если не существует
@@ -54,15 +52,22 @@ def init_db():
     cur.close()
     conn.close()
 
-# Инициализируем БД при старте
-from contextlib import asynccontextmanager
-
 @asynccontextmanager
 async def lifespan(app):
     init_db()
     yield
+
 app = FastAPI(title="Amazon Reviews Sentiment API", lifespan=lifespan)
-# Главный эндпоинт
+
+class ReviewRequest(BaseModel):
+    text: str
+
+def clean_text(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r'[^a-zA-Z\s]', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    return text
+
 @app.post('/predict')
 def predict(request: ReviewRequest):
     cleaned = clean_text(request.text)
@@ -71,7 +76,6 @@ def predict(request: ReviewRequest):
     labels = {0: 'negative', 1: 'neutral', 2: 'positive'}
     sentiment = labels[pred]
 
-    # Сохраняем результат в БД
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute(
@@ -82,17 +86,12 @@ def predict(request: ReviewRequest):
     cur.close()
     conn.close()
 
-    return {
-        'text': request.text,
-        'sentiment': sentiment
-    }
+    return {'text': request.text, 'sentiment': sentiment}
 
-# Эндпоинт проверки
 @app.get('/health')
 def health():
     return {'status': 'ok'}
 
-# Эндпоинт для просмотра последних предсказаний
 @app.get('/predictions')
 def get_predictions():
     conn = get_db_connection()
