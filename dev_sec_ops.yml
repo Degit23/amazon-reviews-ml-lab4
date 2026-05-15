@@ -1,15 +1,15 @@
-echo "docker_image:
-  name: deg1t23/amazon-reviews-ml
+docker_image:
+  name: deg1t23/amazon-reviews-ml-secondlab
   tag: latest
 
 last_commits:
-  - c8b8b068e8b3b8b12ad2c59a82c93fc5478993a3
-  - c4d66c1fb070ab958824ccf18aaf33b33b7766b7
-  - 7aaafed4df5b029fc13a35351422479145b40797
-  - 7ae263f5f6ef86a383626d891ca2dd3cf5ea1d63
-  - 488fea5126273230acdae52826c37f825f0dfe9e
+  - de4c476162d27f52998ff71d6dbc86a863cc29da
+  - 5465ed1f12e707e0f85ec1b977c6728c061c7eed
+  - ad5b3577a727040606d49ac094db0e922c0d18d8
+  - dded32b14fadd8ac4e5317c9e28c5d56fae9e99b
+  - 68cd801abce5421538a87d899e5bb063dfe3cacc
 
 test_coverage:
-  total_tests: 5
-  passed: 5
-  failed: 0" > dev_sec_ops.yml
+  total_tests: 6
+  passed: 6
+  failed: 0
