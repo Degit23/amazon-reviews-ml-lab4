@@ -8,7 +8,6 @@ from src.app import app
 
 client = TestClient(app)
 
-# Мок секретов Vault
 MOCK_SECRETS = {
     'db': 'reviews_db',
     'user': 'postgres',
@@ -22,38 +21,46 @@ def test_health():
     assert response.status_code == 200
     assert response.json() == {'status': 'ok'}
 
+@patch('src.app.get_kafka_producer')
 @patch('src.app.get_secrets', return_value=MOCK_SECRETS)
 @patch('src.app.get_db_connection')
-def test_predict_positive(mock_db, mock_secrets):
+def test_predict_positive(mock_db, mock_secrets, mock_kafka):
     mock_conn = MagicMock()
     mock_db.return_value = mock_conn
+    mock_kafka.return_value = MagicMock()
     response = client.post('/predict', json={'text': 'This album is absolutely amazing!'})
     assert response.status_code == 200
     assert response.json()['sentiment'] == 'positive'
 
+@patch('src.app.get_kafka_producer')
 @patch('src.app.get_secrets', return_value=MOCK_SECRETS)
 @patch('src.app.get_db_connection')
-def test_predict_negative(mock_db, mock_secrets):
+def test_predict_negative(mock_db, mock_secrets, mock_kafka):
     mock_conn = MagicMock()
     mock_db.return_value = mock_conn
+    mock_kafka.return_value = MagicMock()
     response = client.post('/predict', json={'text': 'Terrible quality, waste of money.'})
     assert response.status_code == 200
     assert response.json()['sentiment'] == 'negative'
 
+@patch('src.app.get_kafka_producer')
 @patch('src.app.get_secrets', return_value=MOCK_SECRETS)
 @patch('src.app.get_db_connection')
-def test_predict_empty(mock_db, mock_secrets):
+def test_predict_empty(mock_db, mock_secrets, mock_kafka):
     mock_conn = MagicMock()
     mock_db.return_value = mock_conn
+    mock_kafka.return_value = MagicMock()
     response = client.post('/predict', json={'text': ''})
     assert response.status_code == 200
     assert 'sentiment' in response.json()
 
+@patch('src.app.get_kafka_producer')
 @patch('src.app.get_secrets', return_value=MOCK_SECRETS)
 @patch('src.app.get_db_connection')
-def test_predict_returns_text(mock_db, mock_secrets):
+def test_predict_returns_text(mock_db, mock_secrets, mock_kafka):
     mock_conn = MagicMock()
     mock_db.return_value = mock_conn
+    mock_kafka.return_value = MagicMock()
     text = 'Great music!'
     response = client.post('/predict', json={'text': text})
     assert response.json()['text'] == text
