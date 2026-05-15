@@ -1,13 +1,13 @@
 docker_image:
-  name: deg1t23/amazon-reviews-ml-secondlab
+  name: deg1t23/amazon-reviews-ml-lab4
   tag: latest
 
 last_commits:
-  - de4c476162d27f52998ff71d6dbc86a863cc29da
-  - 5465ed1f12e707e0f85ec1b977c6728c061c7eed
-  - ad5b3577a727040606d49ac094db0e922c0d18d8
-  - dded32b14fadd8ac4e5317c9e28c5d56fae9e99b
-  - 68cd801abce5421538a87d899e5bb063dfe3cacc
+  - 5df7f83de5f4030f0784de9ec95abb9bf5812fce
+  - f35cffcfa45cbdd9f9d3e8262040f9e50e5700b7
+  - 6ea04cd4bf4f00dc4ff494b7e434bdf76e67eacc
+  - 3d21924f5cbe302297f493a28b9bbbb77370bcae
+  - 64bf28b7024d73d3a426d3e8f2670f3fe67d2ce6
 
 test_coverage:
   total_tests: 6

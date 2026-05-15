@@ -31,6 +31,23 @@ jobs:
         -e POSTGRES_PASSWORD=postgres123 \
         -p 5432:5432 postgres:15
 
+    - name: Start Zookeeper
+      run: |
+        docker run -d --name zookeeper \
+        -e ZOOKEEPER_CLIENT_PORT=2181 \
+        -e ZOOKEEPER_TICK_TIME=2000 \
+        confluentinc/cp-zookeeper:7.4.0
+
+    - name: Start Kafka
+      run: |
+        docker run -d --name kafka \
+        --link zookeeper:zookeeper \
+        -e KAFKA_BROKER_ID=1 \
+        -e KAFKA_ZOOKEEPER_CONNECT=zookeeper:2181 \
+        -e KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092 \
+        -e KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=1 \
+        -p 9092:9092 confluentinc/cp-kafka:7.4.0
+
     - name: Init Vault secrets
       run: |
         sleep 5
@@ -43,34 +60,20 @@ jobs:
         vault kv put secret/postgres db=reviews_db user=postgres password=postgres123 host=db port=5432
 
     - name: Pull Docker image
-      run: docker pull ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-third-laba:latest
+      run: docker pull ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-lab4:latest
 
-    - name: Run container
+    - name: Run consumer
       run: |
-        docker run -d --name test-container -p 8000:8000 \
+        docker run -d --name consumer \
         --link vault:vault \
         --link postgres:db \
+        --link kafka:kafka \
         -e VAULT_ADDR=http://vault:8200 \
         -e VAULT_TOKEN=root-token \
-        ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-third-laba:latest
+        -e KAFKA_BOOTSTRAP_SERVERS=kafka:9092 \
+        ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-lab4:latest \
+        python src/consumer.py
 
-    - name: Wait for startup
-      run: sleep 20
-
-    - name: Test health endpoint
-      run: curl -f http://localhost:8000/health
-
-    - name: Test predict endpoint
+    - name: Run app container
       run: |
-        curl -f -X POST http://localhost:8000/predict \
-        -H "Content-Type: application/json" \
-        -d '{"text": "This album is absolutely amazing!"}'
-
-    - name: Test predictions endpoint
-      run: curl -f http://localhost:8000/predictions
-
-    - name: Stop containers
-      run: |
-        docker stop test-container
-        docker stop postgres
-        docker stop vault
+        docker run -d --name test-contai

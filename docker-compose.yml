@@ -29,6 +29,28 @@ services:
       port=5432"
     restart: on-failure
 
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.4.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:7.4.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    restart: unless-stopped
+
   app:
     build: .
     ports:
@@ -39,10 +61,27 @@ services:
     environment:
       VAULT_ADDR: "http://vault:8200"
       VAULT_TOKEN: "root-token"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
     depends_on:
       - db
       - vault
       - vault-init
+      - kafka
+    restart: unless-stopped
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    environment:
+      VAULT_ADDR: "http://vault:8200"
+      VAULT_TOKEN: "root-token"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+    depends_on:
+      - kafka
+      - vault
+      - vault-init
+      - db
     restart: unless-stopped
 
   db:
