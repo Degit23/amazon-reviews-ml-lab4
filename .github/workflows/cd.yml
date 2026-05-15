@@ -15,30 +15,47 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Start Vault
+      run: |
+        docker run -d --name vault \
+        -e VAULT_DEV_ROOT_TOKEN_ID=root-token \
+        -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+        -e SKIP_SETCAP=true \
+        -p 8200:8200 hashicorp/vault:1.17.0
+
     - name: Start PostgreSQL
       run: |
         docker run -d --name postgres \
-        -e POSTGRES_DB=${{ secrets.POSTGRES_DB }} \
-        -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
-        -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
+        -e POSTGRES_DB=reviews_db \
+        -e POSTGRES_USER=postgres \
+        -e POSTGRES_PASSWORD=postgres123 \
         -p 5432:5432 postgres:15
 
+    - name: Init Vault secrets
+      run: |
+        sleep 5
+        docker run --rm \
+        --link vault:vault \
+        -e VAULT_ADDR=http://vault:8200 \
+        -e VAULT_TOKEN=root-token \
+        -e SKIP_SETCAP=true \
+        hashicorp/vault:1.17.0 \
+        vault kv put secret/postgres db=reviews_db user=postgres password=postgres123 host=db port=5432
+
     - name: Pull Docker image
-      run: docker pull ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-secondlab:latest
+      run: docker pull ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-third-laba:latest
 
     - name: Run container
       run: |
         docker run -d --name test-container -p 8000:8000 \
+        --link vault:vault \
         --link postgres:db \
-        -e POSTGRES_DB=${{ secrets.POSTGRES_DB }} \
-        -e POSTGRES_USER=${{ secrets.POSTGRES_USER }} \
-        -e POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }} \
-        -e POSTGRES_HOST=db \
-        -e POSTGRES_PORT=5432 \
-        ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-secondlab:latest
+        -e VAULT_ADDR=http://vault:8200 \
+        -e VAULT_TOKEN=root-token \
+        ${{ secrets.DOCKER_USERNAME }}/amazon-reviews-ml-third-laba:latest
 
     - name: Wait for startup
-      run: sleep 15
+      run: sleep 20
 
     - name: Test health endpoint
       run: curl -f http://localhost:8000/health
@@ -56,3 +73,4 @@ jobs:
       run: |
         docker stop test-container
         docker stop postgres
+        docker stop vault
