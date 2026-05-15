@@ -1,6 +1,34 @@
-version: '3.8'
-
 services:
+  vault:
+    image: hashicorp/vault:1.17.0
+    container_name: vault
+    ports:
+      - "8200:8200"
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "root-token"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+      SKIP_SETCAP: "true"
+    restart: unless-stopped
+
+  vault-init:
+    image: hashicorp/vault:1.17.0
+    container_name: vault-init
+    environment:
+      VAULT_ADDR: "http://vault:8200"
+      VAULT_TOKEN: "root-token"
+      SKIP_SETCAP: "true"
+    depends_on:
+      - vault
+    command: >
+      sh -c "sleep 5 &&
+      vault kv put secret/postgres
+      db=reviews_db
+      user=postgres
+      password=postgres123
+      host=db
+      port=5432"
+    restart: on-failure
+
   app:
     build: .
     ports:
@@ -8,16 +36,21 @@ services:
     volumes:
       - ./experiments:/app/experiments
       - ./data:/app/data
-    env_file:
-      - .env
+    environment:
+      VAULT_ADDR: "http://vault:8200"
+      VAULT_TOKEN: "root-token"
     depends_on:
       - db
+      - vault
+      - vault-init
     restart: unless-stopped
 
   db:
     image: postgres:15
-    env_file:
-      - .env
+    environment:
+      POSTGRES_DB: reviews_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
     ports:
       - "5432:5432"
     volumes:
