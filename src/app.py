@@ -1,4 +1,5 @@
 import re
+import json
 import joblib
 import configparser
 import os
@@ -7,6 +8,7 @@ import hvac
 from fastapi import FastAPI
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
+from kafka import KafkaProducer
 
 # Загружаем конфиг
 config = configparser.ConfigParser()
@@ -34,6 +36,13 @@ def get_db_connection():
         password=secrets['password'],
         host=secrets['host'],
         port=secrets['port']
+    )
+
+# Создаём Kafka Producer
+def get_kafka_producer():
+    return KafkaProducer(
+        bootstrap_servers=os.getenv('KAFKA_BOOTSTRAP_SERVERS', 'kafka:9092'),
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
     )
 
 # Создаём таблицу если не существует
@@ -76,15 +85,13 @@ def predict(request: ReviewRequest):
     labels = {0: 'negative', 1: 'neutral', 2: 'positive'}
     sentiment = labels[pred]
 
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute(
-        'INSERT INTO predictions (text, sentiment) VALUES (%s, %s)',
-        (request.text, sentiment)
-    )
-    conn.commit()
-    cur.close()
-    conn.close()
+    # Отправляем результат в Kafka вместо прямой записи в БД
+    producer = get_kafka_producer()
+    producer.send('predictions', {
+        'text': request.text,
+        'sentiment': sentiment
+    })
+    producer.flush()
 
     return {'text': request.text, 'sentiment': sentiment}
 
